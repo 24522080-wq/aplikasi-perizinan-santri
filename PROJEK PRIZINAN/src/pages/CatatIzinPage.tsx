@@ -1,4 +1,10 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import {
+  useEffect,
+  useState,
+  useCallback,
+  useMemo,
+} from 'react';
+
 import {
   Search,
   Check,
@@ -9,146 +15,367 @@ import {
   Moon,
   Info,
   Filter,
+  AlertCircle,
 } from 'lucide-react';
 
 import { supabase } from '@/lib/supabase';
+
 import { useAuth } from '@/context/AuthContext';
-import type { Santri, Izin, IzinKegiatan } from '@/types';
+
+import type {
+  Santri,
+  Izin,
+  IzinKegiatan,
+} from '@/types';
 
 
-// =========================
+// ========================================
 // FORMAT TANGGAL HARI INI
-// =========================
+// ========================================
 
-function getTodayStr() {
-  const date = new Date();
+function getTodayStr(): string {
 
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Jakarta',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(date);
-}
+  const date =
+    new Date();
 
 
-// =========================
-// FORMAT TANGGAL INDONESIA
-// =========================
+  return new Intl.DateTimeFormat(
+    'en-CA',
+    {
+      timeZone:
+        'Asia/Jakarta',
 
-function formatDateID(dateStr: string) {
-  return new Intl.DateTimeFormat('id-ID', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'Asia/Jakarta',
-  }).format(
-    new Date(`${dateStr}T00:00:00+07:00`)
+      year:
+        'numeric',
+
+      month:
+        '2-digit',
+
+      day:
+        '2-digit',
+    }
+  ).format(
+    date
   );
+
 }
 
 
-// =========================
+// ========================================
+// FORMAT TANGGAL INDONESIA
+// ========================================
+
+function formatDateID(
+  dateStr: string
+): string {
+
+  if (!dateStr) {
+
+    return '-';
+
+  }
+
+
+  try {
+
+    return new Intl.DateTimeFormat(
+      'id-ID',
+      {
+        weekday:
+          'long',
+
+        day:
+          'numeric',
+
+        month:
+          'long',
+
+        year:
+          'numeric',
+
+        timeZone:
+          'Asia/Jakarta',
+      }
+    ).format(
+      new Date(
+        `${dateStr}T00:00:00+07:00`
+      )
+    );
+
+  } catch {
+
+    return dateStr;
+
+  }
+
+}
+
+
+// ========================================
+// FORMAT WAKTU INDONESIA
+// ========================================
+
+function formatDateTimeID(
+  dateStr:
+    | string
+    | null
+    | undefined
+): string {
+
+  if (!dateStr) {
+
+    return '-';
+
+  }
+
+
+  try {
+
+    return new Intl.DateTimeFormat(
+      'id-ID',
+      {
+        dateStyle:
+          'medium',
+
+        timeStyle:
+          'short',
+
+        timeZone:
+          'Asia/Jakarta',
+      }
+    ).format(
+      new Date(
+        dateStr
+      )
+    );
+
+  } catch {
+
+    return '-';
+
+  }
+
+}
+
+
+// ========================================
 // HALAMAN CATAT IZIN
-// =========================
+// ========================================
 
 export function CatatIzinPage() {
 
-  const { profile } = useAuth();
+
+  // ======================================
+  // AUTH
+  // ======================================
+
+  const {
+    profile,
+  } =
+    useAuth();
 
 
-  // =========================
-  // STATE
-  // =========================
+  // ======================================
+  // STATE DATA SANTRI
+  // ======================================
 
-  const [santriList, setSantriList] =
-    useState<Santri[]>([]);
+  const [
+    santriList,
+    setSantriList,
+  ] =
+    useState<
+      Santri[]
+    >(
+      []
+    );
 
-  const [izinMap, setIzinMap] =
-    useState<Map<string, Izin>>(
+
+  // ======================================
+  // STATE DATA IZIN
+  // ======================================
+
+  const [
+    izinMap,
+    setIzinMap,
+  ] =
+    useState<
+      Map<
+        string,
+        Izin
+      >
+    >(
       new Map()
     );
 
-  const [search, setSearch] =
-    useState('');
 
-  const [selectedDate, setSelectedDate] =
+  // ======================================
+  // STATE PENCARIAN
+  // ======================================
+
+  const [
+    search,
+    setSearch,
+  ] =
+    useState(
+      ''
+    );
+
+
+  // ======================================
+  // STATE TANGGAL
+  // ======================================
+
+  const [
+    selectedDate,
+    setSelectedDate,
+  ] =
     useState(
       getTodayStr()
     );
 
-  const [selectedKegiatan, setSelectedKegiatan] =
-    useState<IzinKegiatan>(
+
+  // ======================================
+  // STATE KEGIATAN
+  // ======================================
+
+  const [
+    selectedKegiatan,
+    setSelectedKegiatan,
+  ] =
+    useState<
+      IzinKegiatan
+    >(
       'Maghrib'
     );
 
-  const [loading, setLoading] =
-    useState(true);
 
-  const [actionLoading, setActionLoading] =
-    useState<string | null>(
+  // ======================================
+  // STATE LOADING
+  // ======================================
+
+  const [
+    loading,
+    setLoading,
+  ] =
+    useState(
+      true
+    );
+
+
+  // ======================================
+  // STATE LOADING AKSI
+  // ======================================
+
+  const [
+    actionLoading,
+    setActionLoading,
+  ] =
+    useState<
+      string
+      | null
+    >(
       null
     );
 
-  const [error, setError] =
-    useState<string | null>(
+
+  // ======================================
+  // STATE ERROR
+  // ======================================
+
+  const [
+    error,
+    setError,
+  ] =
+    useState<
+      string
+      | null
+    >(
       null
     );
 
-  const [detailIzin, setDetailIzin] =
-    useState<Izin | null>(
+
+  // ======================================
+  // STATE DETAIL IZIN
+  // ======================================
+
+  const [
+    detailIzin,
+    setDetailIzin,
+  ] =
+    useState<
+      Izin
+      | null
+    >(
       null
     );
 
-  const [filterStatus, setFilterStatus] =
-    useState<'all' | 'Aktif'>(
+
+  // ======================================
+  // FILTER STATUS
+  // ======================================
+
+  const [
+    filterStatus,
+    setFilterStatus,
+  ] =
+    useState<
+      'all'
+      | 'Aktif'
+    >(
       'Aktif'
     );
 
 
-  // =========================
+  // ========================================
   // AMBIL DATA SANTRI
-  // =========================
+  // ========================================
 
   const fetchSantri =
     useCallback(
       async () => {
 
-        setError(null);
-
         const {
           data,
           error,
-        } = await supabase
-          .from('santri')
-          .select('*')
-          .order(
-            'nama_lengkap',
-            {
-              ascending: true,
-            }
-          );
+        } =
+          await supabase
+            .from(
+              'santri'
+            )
+            .select(
+              '*'
+            )
+            .order(
+              'nama_lengkap',
+              {
+                ascending:
+                  true,
+              }
+            );
 
 
-        if (error) {
+        if (
+          error
+        ) {
 
           console.error(
-            'Error fetch santri:',
+            'Error mengambil data santri:',
             error
           );
 
-          setError(
+
+          throw new Error(
             `Gagal memuat data santri: ${error.message}`
           );
-
-          return;
 
         }
 
 
         setSantriList(
-          (data || []) as Santri[]
+          (
+            data ??
+            []
+          ) as Santri[]
         );
 
       },
@@ -156,9 +383,9 @@ export function CatatIzinPage() {
     );
 
 
-  // =========================
+  // ========================================
   // AMBIL DATA IZIN
-  // =========================
+  // ========================================
 
   const fetchIzin =
     useCallback(
@@ -167,33 +394,37 @@ export function CatatIzinPage() {
         const {
           data,
           error,
-        } = await supabase
-          .from('izin')
-          .select(
-            '*, santri(*)'
-          )
-          .eq(
-            'tanggal',
-            selectedDate
-          )
-          .eq(
-            'kegiatan',
-            selectedKegiatan
-          );
+        } =
+          await supabase
+            .from(
+              'izin'
+            )
+            .select(
+              '*, santri(*)'
+            )
+            .eq(
+              'tanggal',
+              selectedDate
+            )
+            .eq(
+              'kegiatan',
+              selectedKegiatan
+            );
 
 
-        if (error) {
+        if (
+          error
+        ) {
 
           console.error(
-            'Error fetch izin:',
+            'Error mengambil data izin:',
             error
           );
 
-          setError(
+
+          throw new Error(
             `Gagal memuat data izin: ${error.message}`
           );
-
-          return;
 
         }
 
@@ -206,9 +437,14 @@ export function CatatIzinPage() {
 
 
         (
-          (data || []) as Izin[]
+          (
+            data ??
+            []
+          ) as Izin[]
         ).forEach(
-          (izin) => {
+          (
+            izin
+          ) => {
 
             map.set(
               izin.santri_id,
@@ -231,20 +467,25 @@ export function CatatIzinPage() {
     );
 
 
-  // =========================
-  // LOAD DATA AWAL
-  // =========================
+  // ========================================
+  // LOAD DATA HALAMAN
+  // ========================================
 
-  useEffect(
-    () => {
+  const loadData =
+    useCallback(
+      async () => {
 
-      const loadData =
-        async () => {
+        setLoading(
+          true
+        );
 
-          setLoading(
-            true
-          );
 
+        setError(
+          null
+        );
+
+
+        try {
 
           await Promise.all(
             [
@@ -253,27 +494,57 @@ export function CatatIzinPage() {
             ]
           );
 
+        } catch (
+          err
+        ) {
+
+          console.error(
+            'Error memuat halaman:',
+            err
+          );
+
+
+          setError(
+            err instanceof Error
+              ? err.message
+              : 'Terjadi kesalahan saat memuat data'
+          );
+
+        } finally {
 
           setLoading(
             false
           );
 
-        };
+        }
 
+      },
+      [
+        fetchSantri,
+        fetchIzin,
+      ]
+    );
+
+
+  // ========================================
+  // LOAD PERTAMA
+  // ========================================
+
+  useEffect(
+    () => {
 
       loadData();
 
     },
     [
-      fetchSantri,
-      fetchIzin,
+      loadData,
     ]
   );
 
 
-  // =========================
-  // REALTIME IZIN
-  // =========================
+  // ========================================
+  // REALTIME SUPABASE
+  // ========================================
 
   useEffect(
     () => {
@@ -281,18 +552,35 @@ export function CatatIzinPage() {
       const channel =
         supabase
           .channel(
-            'izin-changes'
+            `izin-changes-${selectedDate}-${selectedKegiatan}`
           )
           .on(
             'postgres_changes',
             {
-              event: '*',
-              schema: 'public',
-              table: 'izin',
+              event:
+                '*',
+
+              schema:
+                'public',
+
+              table:
+                'izin',
             },
             () => {
 
-              fetchIzin();
+              fetchIzin()
+                .catch(
+                  (
+                    err
+                  ) => {
+
+                    console.error(
+                      'Realtime izin error:',
+                      err
+                    );
+
+                  }
+                );
 
             }
           )
@@ -309,19 +597,39 @@ export function CatatIzinPage() {
 
     },
     [
-      fetchIzin
+      fetchIzin,
+      selectedDate,
+      selectedKegiatan,
     ]
   );
 
 
-  // =========================
-  // TAMBAH / HAPUS IZIN
-  // =========================
+  // ========================================
+  // TAMBAH ATAU HAPUS IZIN
+  // ========================================
 
   const toggleIzin =
     async (
       santri: Santri
     ) => {
+
+
+      // ==================================
+      // VALIDASI PROFILE
+      // ==================================
+
+      if (
+        !profile?.id
+      ) {
+
+        setError(
+          'Data pengguna tidak ditemukan. Silakan login kembali.'
+        );
+
+        return;
+
+      }
+
 
       const key =
         santri.id;
@@ -346,11 +654,13 @@ export function CatatIzinPage() {
       try {
 
 
-        // =====================
+        // ==================================
         // HAPUS IZIN
-        // =====================
+        // ==================================
 
-        if (existing) {
+        if (
+          existing
+        ) {
 
 
           const {
@@ -358,7 +668,9 @@ export function CatatIzinPage() {
               deleteError,
           } =
             await supabase
-              .from('izin')
+              .from(
+                'izin'
+              )
               .delete()
               .eq(
                 'id',
@@ -375,9 +687,9 @@ export function CatatIzinPage() {
           }
 
 
-          // =====================
-          // CATAT LOG HAPUS IZIN
-          // =====================
+          // ==================================
+          // SIMPAN LOG HAPUS IZIN
+          // ==================================
 
           const {
             error:
@@ -390,8 +702,7 @@ export function CatatIzinPage() {
               .insert(
                 {
                   user_id:
-                    profile?.id ??
-                    null,
+                    profile.id,
 
                   aksi:
                     'hapus_izin',
@@ -411,13 +722,8 @@ export function CatatIzinPage() {
           ) {
 
             console.error(
-              'Gagal mencatat log:',
+              'Gagal mencatat log hapus izin:',
               logError
-            );
-
-
-            throw new Error(
-              `Izin berhasil dihapus, tetapi log gagal dicatat: ${logError.message}`
             );
 
           }
@@ -425,9 +731,9 @@ export function CatatIzinPage() {
         }
 
 
-        // =====================
+        // ==================================
         // TAMBAH IZIN
-        // =====================
+        // ==================================
 
         else {
 
@@ -438,7 +744,9 @@ export function CatatIzinPage() {
               insertError,
           } =
             await supabase
-              .from('izin')
+              .from(
+                'izin'
+              )
               .insert(
                 {
                   santri_id:
@@ -454,8 +762,7 @@ export function CatatIzinPage() {
                     '',
 
                   dicatat_oleh:
-                    profile?.id ??
-                    null,
+                    profile.id,
                 }
               )
               .select(
@@ -473,9 +780,9 @@ export function CatatIzinPage() {
           }
 
 
-          // =====================
-          // CATAT LOG TAMBAH IZIN
-          // =====================
+          // ==================================
+          // SIMPAN LOG TAMBAH IZIN
+          // ==================================
 
           const {
             error:
@@ -488,8 +795,7 @@ export function CatatIzinPage() {
               .insert(
                 {
                   user_id:
-                    profile?.id ??
-                    null,
+                    profile.id,
 
                   aksi:
                     'tambah_izin',
@@ -509,13 +815,8 @@ export function CatatIzinPage() {
           ) {
 
             console.error(
-              'Gagal mencatat log:',
+              'Gagal mencatat log tambah izin:',
               logError
-            );
-
-
-            throw new Error(
-              `Izin berhasil ditambahkan, tetapi log gagal dicatat: ${logError.message}`
             );
 
           }
@@ -523,9 +824,9 @@ export function CatatIzinPage() {
         }
 
 
-        // =====================
+        // ==================================
         // REFRESH DATA IZIN
-        // =====================
+        // ==================================
 
         await fetchIzin();
 
@@ -533,7 +834,6 @@ export function CatatIzinPage() {
       } catch (
         err
       ) {
-
 
         console.error(
           'Toggle izin error:',
@@ -544,12 +844,10 @@ export function CatatIzinPage() {
         setError(
           err instanceof Error
             ? err.message
-            : 'Terjadi kesalahan'
+            : 'Terjadi kesalahan saat mengubah data izin'
         );
 
-
       } finally {
-
 
         setActionLoading(
           null
@@ -560,21 +858,24 @@ export function CatatIzinPage() {
     };
 
 
-  // =========================
-  // FILTER SANTRI
-  // =========================
+  // ========================================
+  // FILTER DATA SANTRI
+  // ========================================
 
   const filteredSantri =
     useMemo(
       () => {
 
+
         let list =
-          santriList;
+          [
+            ...santriList
+          ];
 
 
-        // =====================
+        // ==================================
         // FILTER STATUS
-        // =====================
+        // ==================================
 
         if (
           filterStatus ===
@@ -593,18 +894,19 @@ export function CatatIzinPage() {
         }
 
 
-        // =====================
-        // SEARCH
-        // =====================
+        // ==================================
+        // PENCARIAN
+        // ==================================
+
+        const q =
+          search
+            .trim()
+            .toLowerCase();
+
 
         if (
-          search.trim()
+          q
         ) {
-
-          const q =
-            search
-              .toLowerCase();
-
 
           list =
             list.filter(
@@ -633,7 +935,7 @@ export function CatatIzinPage() {
                   ||
 
                   (
-                    santri.asal_kota ||
+                    santri.asal_kota ??
                     ''
                   )
                     .toLowerCase()
@@ -644,7 +946,18 @@ export function CatatIzinPage() {
                   ||
 
                   (
-                    santri.universitas ||
+                    santri.universitas ??
+                    ''
+                  )
+                    .toLowerCase()
+                    .includes(
+                      q
+                    )
+
+                  ||
+
+                  (
+                    santri.kamar ??
                     ''
                   )
                     .toLowerCase()
@@ -671,25 +984,79 @@ export function CatatIzinPage() {
     );
 
 
-  // =========================
-  // STATISTIK
-  // =========================
+  // ========================================
+  // STATISTIK SANTRI AKTIF
+  // ========================================
 
-  const izinCount =
-    izinMap.size;
+  const activeSantriIds =
+    useMemo(
+      () => {
 
+        return new Set(
+          santriList
+            .filter(
+              (
+                santri
+              ) =>
+                santri.status ===
+                'Aktif'
+            )
+            .map(
+              (
+                santri
+              ) =>
+                santri.id
+            )
+        );
+
+      },
+      [
+        santriList,
+      ]
+    );
+
+
+  // ========================================
+  // TOTAL SANTRI AKTIF
+  // ========================================
 
   const totalSantri =
-    santriList
-      .filter(
-        (
-          santri
-        ) =>
-          santri.status ===
-          'Aktif'
-      )
-      .length;
+    activeSantriIds.size;
 
+
+  // ========================================
+  // TOTAL IZIN SANTRI AKTIF
+  // ========================================
+
+  const izinCount =
+    useMemo(
+      () => {
+
+        return Array
+          .from(
+            izinMap.keys()
+          )
+          .filter(
+            (
+              santriId
+            ) =>
+              activeSantriIds.has(
+                santriId
+              )
+          )
+          .length;
+
+      },
+      [
+        izinMap,
+        activeSantriIds,
+      ]
+    );
+
+
+  // ========================================
+  // TOTAL HADIR
+  // ========================================
 
   const hadirCount =
     Math.max(
@@ -699,18 +1066,21 @@ export function CatatIzinPage() {
     );
 
 
-  // =========================
-  // TAMPILAN
-  // =========================
+  // ========================================
+  // TAMPILAN HALAMAN
+  // ========================================
 
   return (
 
     <div className="space-y-5 animate-fade-in">
 
 
+      {/* ================================= */}
       {/* HEADER */}
+      {/* ================================= */}
 
       <div>
+
 
         <h1 className="text-2xl font-bold text-stone-800">
 
@@ -729,24 +1099,59 @@ export function CatatIzinPage() {
 
         </p>
 
+
       </div>
 
 
 
+      {/* ================================= */}
       {/* ERROR */}
+      {/* ================================= */}
 
       {
         error && (
 
-          <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 text-red-700 text-sm">
+          <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-200">
 
-            <Info className="w-4 h-4 flex-shrink-0" />
 
-            <span>
+            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
 
-              {error}
 
-            </span>
+            <div className="flex-1">
+
+
+              <p className="text-sm font-semibold text-red-700">
+
+                Terjadi Kesalahan
+
+              </p>
+
+
+              <p className="text-sm text-red-600 mt-1">
+
+                {error}
+
+              </p>
+
+
+            </div>
+
+
+            <button
+              onClick={
+                () =>
+                  setError(
+                    null
+                  )
+              }
+              className="text-red-400 hover:text-red-600"
+              title="Tutup"
+            >
+
+              <X className="w-4 h-4" />
+
+            </button>
+
 
           </div>
 
@@ -755,9 +1160,12 @@ export function CatatIzinPage() {
 
 
 
+      {/* ================================= */}
       {/* TANGGAL DAN KEGIATAN */}
+      {/* ================================= */}
 
-      <div className="card p-4 space-y-4">
+      <div className="card p-4">
+
 
         <div className="flex flex-col sm:flex-row gap-4">
 
@@ -765,6 +1173,7 @@ export function CatatIzinPage() {
           {/* TANGGAL */}
 
           <div className="flex-1">
+
 
             <label className="block text-xs font-semibold text-stone-500 mb-1.5">
 
@@ -775,12 +1184,16 @@ export function CatatIzinPage() {
 
             <div className="relative">
 
+
               <Calendar className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 pointer-events-none" />
 
 
               <input
                 type="date"
-                value={selectedDate}
+
+                value={
+                  selectedDate
+                }
 
                 onChange={
                   (
@@ -794,7 +1207,9 @@ export function CatatIzinPage() {
                 className="input-field pl-10"
               />
 
+
             </div>
+
 
           </div>
 
@@ -803,6 +1218,7 @@ export function CatatIzinPage() {
           {/* KEGIATAN */}
 
           <div className="flex-1">
+
 
             <label className="block text-xs font-semibold text-stone-500 mb-1.5">
 
@@ -818,6 +1234,8 @@ export function CatatIzinPage() {
 
               <button
 
+                type="button"
+
                 onClick={
                   () =>
                     setSelectedKegiatan(
@@ -825,13 +1243,13 @@ export function CatatIzinPage() {
                     )
                 }
 
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all border-2 ${
                   selectedKegiatan ===
                   'Maghrib'
 
-                    ? 'bg-amber-50 text-amber-700 border-2 border-amber-300'
+                    ? 'bg-amber-50 text-amber-700 border-amber-300'
 
-                    : 'bg-stone-50 text-stone-500 border-2 border-transparent hover:bg-stone-100'
+                    : 'bg-stone-50 text-stone-500 border-transparent hover:bg-stone-100'
                 }`}
 
               >
@@ -848,6 +1266,8 @@ export function CatatIzinPage() {
 
               <button
 
+                type="button"
+
                 onClick={
                   () =>
                     setSelectedKegiatan(
@@ -855,13 +1275,13 @@ export function CatatIzinPage() {
                     )
                 }
 
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all border-2 ${
                   selectedKegiatan ===
                   'Subuh'
 
-                    ? 'bg-indigo-50 text-indigo-700 border-2 border-indigo-300'
+                    ? 'bg-indigo-50 text-indigo-700 border-indigo-300'
 
-                    : 'bg-stone-50 text-stone-500 border-2 border-transparent hover:bg-stone-100'
+                    : 'bg-stone-50 text-stone-500 border-transparent hover:bg-stone-100'
                 }`}
 
               >
@@ -875,21 +1295,28 @@ export function CatatIzinPage() {
 
             </div>
 
+
           </div>
 
 
         </div>
 
+
       </div>
 
 
 
+      {/* ================================= */}
       {/* STATISTIK */}
+      {/* ================================= */}
 
       <div className="grid grid-cols-3 gap-3">
 
 
+        {/* TOTAL */}
+
         <div className="card p-4 text-center">
+
 
           <p className="text-2xl font-bold text-stone-800">
 
@@ -897,17 +1324,22 @@ export function CatatIzinPage() {
 
           </p>
 
-          <p className="text-xs text-stone-500 mt-0.5">
+
+          <p className="text-xs text-stone-500 mt-1">
 
             Total Santri
 
           </p>
 
+
         </div>
 
 
 
+        {/* HADIR */}
+
         <div className="card p-4 text-center bg-primary-50/50 border-primary-200/60">
+
 
           <p className="text-2xl font-bold text-primary-700">
 
@@ -915,17 +1347,22 @@ export function CatatIzinPage() {
 
           </p>
 
-          <p className="text-xs text-primary-600 mt-0.5">
+
+          <p className="text-xs text-primary-600 mt-1">
 
             Hadir
 
           </p>
 
+
         </div>
 
 
 
+        {/* IZIN */}
+
         <div className="card p-4 text-center bg-amber-50/50 border-amber-200/60">
+
 
           <p className="text-2xl font-bold text-amber-700">
 
@@ -933,11 +1370,13 @@ export function CatatIzinPage() {
 
           </p>
 
-          <p className="text-xs text-amber-600 mt-0.5">
+
+          <p className="text-xs text-amber-600 mt-1">
 
             Izin
 
           </p>
+
 
         </div>
 
@@ -946,12 +1385,17 @@ export function CatatIzinPage() {
 
 
 
+      {/* ================================= */}
       {/* SEARCH DAN FILTER */}
+      {/* ================================= */}
 
       <div className="flex gap-2">
 
 
+        {/* SEARCH */}
+
         <div className="relative flex-1">
+
 
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
 
@@ -960,7 +1404,9 @@ export function CatatIzinPage() {
 
             type="text"
 
-            value={search}
+            value={
+              search
+            }
 
             onChange={
               (
@@ -971,34 +1417,36 @@ export function CatatIzinPage() {
                 )
             }
 
-            placeholder="Cari nama, NIS, kota, universitas..."
+            placeholder="Cari nama, NIS, kota, universitas, kamar..."
 
             className="input-field pl-10"
 
           />
 
+
         </div>
 
 
 
+        {/* FILTER */}
+
         <button
+
+          type="button"
 
           onClick={
             () =>
-
               setFilterStatus(
-
                 filterStatus ===
                 'Aktif'
 
                   ? 'all'
 
                   : 'Aktif'
-
               )
           }
 
-          className={`btn-secondary ${
+          className={`btn-secondary flex items-center gap-2 ${
             filterStatus ===
             'Aktif'
 
@@ -1011,6 +1459,7 @@ export function CatatIzinPage() {
 
           <Filter className="w-4 h-4" />
 
+
           {
             filterStatus ===
             'Aktif'
@@ -1020,6 +1469,7 @@ export function CatatIzinPage() {
               : 'Semua'
           }
 
+
         </button>
 
 
@@ -1027,27 +1477,51 @@ export function CatatIzinPage() {
 
 
 
+      {/* ================================= */}
       {/* DAFTAR SANTRI */}
+      {/* ================================= */}
 
       {
         loading ? (
 
-          <div className="flex items-center justify-center py-12">
+          <div className="flex flex-col items-center justify-center py-16 gap-3">
 
-            <Loader2 className="w-6 h-6 animate-spin text-stone-400" />
+
+            <Loader2 className="w-7 h-7 animate-spin text-stone-400" />
+
+
+            <p className="text-sm text-stone-400">
+
+              Memuat data santri...
+
+            </p>
+
 
           </div>
 
         ) : filteredSantri.length ===
           0 ? (
 
-          <div className="card p-8 text-center text-stone-400">
+          <div className="card p-10 text-center">
 
-            <p className="text-sm">
 
-              Tidak ada santri yang ditemukan
+            <Info className="w-10 h-10 mx-auto mb-3 text-stone-300" />
+
+
+            <p className="font-semibold text-stone-600">
+
+              Data Tidak Ditemukan
 
             </p>
+
+
+            <p className="text-sm text-stone-400 mt-1">
+
+              Tidak ada santri yang sesuai
+              dengan pencarian atau filter.
+
+            </p>
+
 
           </div>
 
@@ -1061,6 +1535,7 @@ export function CatatIzinPage() {
                 (
                   santri
                 ) => {
+
 
                   const izin =
                     izinMap.get(
@@ -1114,8 +1589,11 @@ export function CatatIzinPage() {
 
                         {
                           santri.nama_lengkap
-                            .charAt(0)
-                            .toUpperCase()
+                            ?.charAt(
+                              0
+                            )
+                            ?.toUpperCase() ??
+                          '?'
                         }
 
                       </div>
@@ -1191,6 +1669,8 @@ export function CatatIzinPage() {
 
                           <button
 
+                            type="button"
+
                             onClick={
                               () =>
                                 setDetailIzin(
@@ -1200,7 +1680,7 @@ export function CatatIzinPage() {
 
                             className="btn-ghost p-1.5"
 
-                            title="Detail izin"
+                            title="Lihat detail izin"
 
                           >
 
@@ -1217,6 +1697,8 @@ export function CatatIzinPage() {
 
                       <button
 
+                        type="button"
+
                         onClick={
                           () =>
                             toggleIzin(
@@ -1228,7 +1710,13 @@ export function CatatIzinPage() {
                           isLoading
                         }
 
-                        className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-95 ${
+                        title={
+                          isIzin
+                            ? 'Hapus izin'
+                            : 'Catat izin'
+                        }
+
+                        className={`flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all active:scale-95 disabled:opacity-60 ${
                           isIzin
 
                             ? 'bg-amber-500 text-white hover:bg-amber-600'
@@ -1273,7 +1761,9 @@ export function CatatIzinPage() {
 
 
 
+      {/* ================================= */}
       {/* MODAL DETAIL IZIN */}
+      {/* ================================= */}
 
       {
         detailIzin && (
@@ -1306,50 +1796,90 @@ export function CatatIzinPage() {
             >
 
 
-              <h3 className="font-bold text-stone-800 mb-4">
+              {/* HEADER MODAL */}
 
-                Detail Izin
-
-              </h3>
+              <div className="flex items-center justify-between mb-5">
 
 
+                <h3 className="font-bold text-stone-800">
 
-              <div className="space-y-3 text-sm">
+                  Detail Izin
 
+                </h3>
+
+
+                <button
+
+                  type="button"
+
+                  onClick={
+                    () =>
+                      setDetailIzin(
+                        null
+                      )
+                  }
+
+                  className="btn-ghost p-1.5"
+
+                  title="Tutup"
+
+                >
+
+                  <X className="w-4 h-4" />
+
+                </button>
+
+
+              </div>
+
+
+
+              {/* DATA DETAIL */}
+
+              <div className="space-y-4 text-sm">
+
+
+                {/* SANTRI */}
 
                 <div>
 
-                  <span className="text-stone-400">
+
+                  <span className="text-xs text-stone-400">
 
                     Santri
 
                   </span>
 
 
-                  <p className="font-semibold text-stone-700">
+                  <p className="font-semibold text-stone-700 mt-0.5">
 
                     {
                       detailIzin
                         .santri
-                        ?.nama_lengkap
+                        ?.nama_lengkap ??
+                      '-'
                     }
 
                   </p>
+
 
                 </div>
 
 
 
+                {/* TANGGAL */}
+
                 <div>
 
-                  <span className="text-stone-400">
+
+                  <span className="text-xs text-stone-400">
 
                     Tanggal
 
                   </span>
 
 
-                  <p className="font-semibold text-stone-700">
+                  <p className="font-semibold text-stone-700 mt-0.5">
 
                     {
                       formatDateID(
@@ -1359,20 +1889,24 @@ export function CatatIzinPage() {
 
                   </p>
 
+
                 </div>
 
 
 
+                {/* KEGIATAN */}
+
                 <div>
 
-                  <span className="text-stone-400">
+
+                  <span className="text-xs text-stone-400">
 
                     Kegiatan
 
                   </span>
 
 
-                  <p className="font-semibold text-stone-700">
+                  <p className="font-semibold text-stone-700 mt-0.5">
 
                     {
                       detailIzin.kegiatan
@@ -1380,42 +1914,64 @@ export function CatatIzinPage() {
 
                   </p>
 
+
                 </div>
 
 
 
+                {/* KETERANGAN */}
+
+                {
+                  detailIzin.keterangan && (
+
+                    <div>
+
+
+                      <span className="text-xs text-stone-400">
+
+                        Keterangan
+
+                      </span>
+
+
+                      <p className="font-semibold text-stone-700 mt-0.5">
+
+                        {
+                          detailIzin.keterangan
+                        }
+
+                      </p>
+
+
+                    </div>
+
+                  )
+                }
+
+
+
+                {/* WAKTU DICATAT */}
+
                 <div>
 
-                  <span className="text-stone-400">
 
-                    Dicatat pada
+                  <span className="text-xs text-stone-400">
+
+                    Dicatat Pada
 
                   </span>
 
 
-                  <p className="font-semibold text-stone-700">
+                  <p className="font-semibold text-stone-700 mt-0.5">
 
                     {
-                      new Intl.DateTimeFormat(
-                        'id-ID',
-                        {
-                          dateStyle:
-                            'medium',
-
-                          timeStyle:
-                            'short',
-
-                          timeZone:
-                            'Asia/Jakarta',
-                        }
-                      ).format(
-                        new Date(
-                          detailIzin.dicatat_pada
-                        )
+                      formatDateTimeID(
+                        detailIzin.dicatat_pada
                       )
                     }
 
                   </p>
+
 
                 </div>
 
@@ -1424,7 +1980,11 @@ export function CatatIzinPage() {
 
 
 
+              {/* TOMBOL TUTUP */}
+
               <button
+
+                type="button"
 
                 onClick={
                   () =>
@@ -1433,7 +1993,7 @@ export function CatatIzinPage() {
                     )
                 }
 
-                className="btn-secondary w-full mt-5"
+                className="btn-secondary w-full mt-6"
 
               >
 
