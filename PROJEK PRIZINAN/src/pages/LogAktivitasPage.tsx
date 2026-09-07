@@ -1,4 +1,8 @@
-import { useEffect, useState, useCallback } from 'react';
+import {
+  useEffect,
+  useState,
+  useCallback,
+} from 'react';
 
 import {
   FileText,
@@ -9,7 +13,10 @@ import {
 } from 'lucide-react';
 
 import { supabase } from '@/lib/supabase';
-import type { LogAktivitas } from '@/types';
+
+import type {
+  LogAktivitas,
+} from '@/types';
 
 
 // ========================================
@@ -19,16 +26,15 @@ import type { LogAktivitas } from '@/types';
 function formatTime(
   dateStr: string | null | undefined
 ) {
+
   if (!dateStr) {
+
     return '-';
+
   }
 
-  try {
-    const date = new Date(dateStr);
 
-    if (Number.isNaN(date.getTime())) {
-      return '-';
-    }
+  try {
 
     return new Intl.DateTimeFormat(
       'id-ID',
@@ -37,11 +43,16 @@ function formatTime(
         timeStyle: 'short',
         timeZone: 'Asia/Jakarta',
       }
-    ).format(date);
+    ).format(
+      new Date(dateStr)
+    );
 
   } catch {
+
     return '-';
+
   }
+
 }
 
 
@@ -54,23 +65,35 @@ function getActionColor(
 ): string {
 
   if (
-    aksi.startsWith('tambah')
+    aksi.startsWith(
+      'tambah'
+    )
   ) {
+
     return 'bg-primary-50 text-primary-700';
+
   }
 
 
   if (
-    aksi.startsWith('hapus')
+    aksi.startsWith(
+      'hapus'
+    )
   ) {
+
     return 'bg-red-50 text-red-600';
+
   }
 
 
   if (
-    aksi.startsWith('edit')
+    aksi.startsWith(
+      'edit'
+    )
   ) {
+
     return 'bg-amber-50 text-amber-700';
+
   }
 
 
@@ -91,48 +114,48 @@ function getActionLabel(
     Record<string, string> = {
 
 
-    // =====================
-    // IZIN
-    // =====================
+      // =====================
+      // IZIN
+      // =====================
 
-    tambah_izin:
-      'Tambah Izin',
+      tambah_izin:
+        'Tambah Izin',
 
-    edit_izin:
-      'Edit Izin',
+      hapus_izin:
+        'Hapus Izin',
 
-    hapus_izin:
-      'Hapus Izin',
-
-
-    // =====================
-    // SANTRI
-    // =====================
-
-    tambah_santri:
-      'Tambah Santri',
-
-    edit_santri:
-      'Edit Santri',
-
-    hapus_santri:
-      'Hapus Santri',
+      edit_izin:
+        'Edit Izin',
 
 
-    // =====================
-    // USER
-    // =====================
+      // =====================
+      // SANTRI
+      // =====================
 
-    tambah_user:
-      'Tambah User',
+      tambah_santri:
+        'Tambah Santri',
 
-    edit_user:
-      'Edit User',
+      edit_santri:
+        'Edit Santri',
 
-    hapus_user:
-      'Hapus User',
+      hapus_santri:
+        'Hapus Santri',
 
-  };
+
+      // =====================
+      // USER
+      // =====================
+
+      tambah_user:
+        'Tambah User',
+
+      edit_user:
+        'Edit User',
+
+      hapus_user:
+        'Hapus User',
+
+    };
 
 
   return (
@@ -154,35 +177,49 @@ export function LogAktivitasPage() {
   // STATE
   // ======================================
 
-  const [logs, setLogs] =
-    useState<LogAktivitas[]>([]);
+  const [
+    logs,
+    setLogs,
+  ] = useState<
+    LogAktivitas[]
+  >([]);
 
 
-  const [loading, setLoading] =
-    useState<boolean>(true);
+  const [
+    loading,
+    setLoading,
+  ] = useState(
+    true
+  );
 
 
   const [
     errorMessage,
     setErrorMessage,
-  ] =
-    useState<string | null>(
-      null
-    );
-
+  ] = useState<
+    string | null
+  >(
+    null
+  );
 
 
   // ======================================
-  // AMBIL DATA LOG AKTIVITAS
+  // AMBIL DATA LOG
   // ======================================
 
   const fetchLogs =
     useCallback(
       async () => {
 
-        setLoading(true);
 
-        setErrorMessage(null);
+        setLoading(
+          true
+        );
+
+
+        setErrorMessage(
+          null
+        );
 
 
         try {
@@ -193,13 +230,16 @@ export function LogAktivitasPage() {
             error,
           } =
             await supabase
-
               .from(
                 'log_aktivitas'
               )
-
               .select(`
-                *,
+                id,
+                user_id,
+                aksi,
+                target_id,
+                detail,
+                created_at,
                 profiles (
                   id,
                   nama,
@@ -207,30 +247,28 @@ export function LogAktivitasPage() {
                   created_at
                 )
               `)
-
               .order(
-                'waktu',
+                'created_at',
                 {
-                  ascending: false,
+                  ascending:
+                    false,
                 }
               )
-
               .limit(
                 100
               );
 
 
-
-          // ============================
-          // JIKA ERROR
-          // ============================
+          // ===============================
+          // JIKA TERJADI ERROR
+          // ===============================
 
           if (
             error
           ) {
 
             console.error(
-              'Gagal mengambil log aktivitas:',
+              'Error mengambil log aktivitas:',
               error
             );
 
@@ -250,14 +288,15 @@ export function LogAktivitasPage() {
           }
 
 
-
-          // ============================
+          // ===============================
           // SIMPAN DATA
-          // ============================
+          // ===============================
 
           setLogs(
-            (data ??
-              []) as LogAktivitas[]
+            (
+              data ??
+              []
+            ) as LogAktivitas[]
           );
 
 
@@ -292,15 +331,14 @@ export function LogAktivitasPage() {
 
         }
 
-      },
 
+      },
       []
     );
 
 
-
   // ======================================
-  // LOAD DATA PERTAMA
+  // LOAD DATA AWAL
   // ======================================
 
   useEffect(
@@ -309,12 +347,10 @@ export function LogAktivitasPage() {
       fetchLogs();
 
     },
-
     [
       fetchLogs,
     ]
   );
-
 
 
   // ======================================
@@ -327,14 +363,11 @@ export function LogAktivitasPage() {
 
       const channel =
         supabase
-
           .channel(
             'log-aktivitas-changes'
           )
-
           .on(
             'postgres_changes',
-
             {
               event:
                 '*',
@@ -346,35 +379,31 @@ export function LogAktivitasPage() {
                 'log_aktivitas',
             },
 
-
             () => {
 
               fetchLogs();
 
             }
-
           )
-
           .subscribe();
 
 
-
       return () => {
+
 
         supabase.removeChannel(
           channel
         );
 
+
       };
 
 
     },
-
     [
       fetchLogs,
     ]
   );
-
 
 
   // ======================================
@@ -383,51 +412,27 @@ export function LogAktivitasPage() {
 
   return (
 
-    <div
-      className="
-        space-y-5
-        animate-fade-in
-      "
-    >
+    <div className="space-y-5 animate-fade-in">
 
 
       {/* ================================= */}
       {/* HEADER */}
       {/* ================================= */}
 
-      <div
-        className="
-          flex
-          items-start
-          justify-between
-          gap-3
-        "
-      >
+      <div className="flex items-start justify-between gap-3">
 
 
         <div>
 
 
-          <h1
-            className="
-              text-2xl
-              font-bold
-              text-stone-800
-            "
-          >
+          <h1 className="text-2xl font-bold text-stone-800">
 
             Log Aktivitas
 
           </h1>
 
 
-          <p
-            className="
-              text-sm
-              text-stone-500
-              mt-1
-            "
-          >
+          <p className="text-sm text-stone-500 mt-1">
 
             Riwayat aktivitas pengurus
             (100 aktivitas terakhir)
@@ -439,9 +444,7 @@ export function LogAktivitasPage() {
 
 
 
-        {/* =============================== */}
         {/* BUTTON REFRESH */}
-        {/* =============================== */}
 
         <button
 
@@ -455,27 +458,18 @@ export function LogAktivitasPage() {
             loading
           }
 
-          className="
-            btn-secondary
-            flex
-            items-center
-            gap-2
-          "
+          className="btn-secondary flex items-center gap-2"
 
         >
 
 
           <RefreshCw
 
-            className={`
-              w-4
-              h-4
-              ${
-                loading
-                  ? 'animate-spin'
-                  : ''
-              }
-            `}
+            className={`w-4 h-4 ${
+              loading
+                ? 'animate-spin'
+                : ''
+            }`}
 
           />
 
@@ -495,71 +489,44 @@ export function LogAktivitasPage() {
 
 
       {/* ================================= */}
-      {/* PESAN ERROR */}
+      {/* ERROR */}
       {/* ================================= */}
 
-      {errorMessage && (
+      {
+        errorMessage && (
 
-        <div
-          className="
-            flex
-            items-start
-            gap-3
-            p-4
-            rounded-xl
-            bg-red-50
-            border
-            border-red-200
-          "
-        >
+          <div className="flex items-start gap-3 p-4 rounded-xl bg-red-50 border border-red-200">
 
 
-          <AlertCircle
-            className="
-              w-5
-              h-5
-              text-red-500
-              flex-shrink-0
-              mt-0.5
-            "
-          />
+            <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
 
 
-          <div>
+            <div>
 
 
-            <p
-              className="
-                text-sm
-                font-semibold
-                text-red-700
-              "
-            >
+              <p className="text-sm font-semibold text-red-700">
 
-              Terjadi Kesalahan
+                Terjadi Kesalahan
 
-            </p>
+              </p>
 
 
-            <p
-              className="
-                text-sm
-                text-red-600
-                mt-1
-              "
-            >
+              <p className="text-sm text-red-600 mt-1">
 
-              {errorMessage}
+                {
+                  errorMessage
+                }
 
-            </p>
+              </p>
+
+
+            </div>
 
 
           </div>
 
-
-        </div>
-
-      )}
+        )
+      }
 
 
 
@@ -567,362 +534,242 @@ export function LogAktivitasPage() {
       {/* LOADING */}
       {/* ================================= */}
 
-      {loading ? (
+      {
+        loading ? (
 
+          <div className="flex flex-col items-center justify-center py-16 gap-3">
 
-        <div
-          className="
-            flex
-            flex-col
-            items-center
-            justify-center
-            py-16
-            gap-3
-          "
-        >
 
+            <Loader2 className="w-7 h-7 animate-spin text-stone-400" />
 
-          <Loader2
-            className="
-              w-7
-              h-7
-              animate-spin
-              text-stone-400
-            "
-          />
 
+            <p className="text-sm text-stone-400">
 
-          <p
-            className="
-              text-sm
-              text-stone-400
-            "
-          >
+              Memuat log aktivitas...
 
-            Memuat log aktivitas...
+            </p>
 
-          </p>
 
+          </div>
 
-        </div>
+        ) : logs.length ===
+          0 ? (
 
 
-      ) : logs.length === 0 ? (
+          /* =============================== */
+          /* BELUM ADA LOG */
+          /* =============================== */
 
+          <div className="card p-10 text-center">
 
-        /* =============================== */
-        /* BELUM ADA LOG */
-        /* =============================== */
 
-        <div
-          className="
-            card
-            p-10
-            text-center
-          "
-        >
+            <FileText className="w-12 h-12 mx-auto mb-3 text-stone-300" />
 
 
-          <FileText
-            className="
-              w-12
-              h-12
-              mx-auto
-              mb-3
-              text-stone-300
-            "
-          />
+            <p className="font-semibold text-stone-600">
 
+              Belum Ada Aktivitas
 
-          <p
-            className="
-              font-semibold
-              text-stone-600
-            "
-          >
+            </p>
 
-            Belum Ada Aktivitas
 
-          </p>
+            <p className="text-sm text-stone-400 mt-1 max-w-sm mx-auto">
 
+              Aktivitas pengurus seperti
+              menambah, mengubah, atau
+              menghapus data akan tercatat
+              dan muncul di halaman ini.
 
-          <p
-            className="
-              text-sm
-              text-stone-400
-              mt-1
-              max-w-sm
-              mx-auto
-            "
-          >
+            </p>
 
-            Aktivitas pengurus seperti
-            menambah, mengubah, atau
-            menghapus data akan tercatat
-            dan muncul di halaman ini.
 
-          </p>
+            <button
 
+              type="button"
 
-          <button
+              onClick={
+                fetchLogs
+              }
 
-            type="button"
+              className="btn-secondary mt-5"
 
-            onClick={
-              fetchLogs
-            }
+            >
 
-            className="
-              btn-secondary
-              mt-5
-            "
 
-          >
+              <RefreshCw className="w-4 h-4" />
 
 
-            <RefreshCw
-              className="
-                w-4
-                h-4
-              "
-            />
+              Coba Refresh
 
 
-            Coba Refresh
+            </button>
 
 
-          </button>
+          </div>
 
 
-        </div>
+        ) : (
 
 
-      ) : (
+          /* =============================== */
+          /* DAFTAR LOG */
+          /* =============================== */
 
+          <div className="card divide-y divide-stone-100">
 
-        /* =============================== */
-        /* DAFTAR LOG */
-        /* =============================== */
 
-        <div
-          className="
-            card
-            divide-y
-            divide-stone-100
-          "
-        >
-
-
-          {logs.map(
-
-            (
-              log
-            ) => (
-
-              <div
-
-                key={
-                  log.id
-                }
-
-                className="
-                  p-4
-                  flex
-                  items-start
-                  gap-3
-                "
-
-              >
-
-
-                {/* ========================= */}
-                {/* ICON */}
-                {/* ========================= */}
-
-                <div
-                  className="
-                    w-10
-                    h-10
-                    rounded-full
-                    bg-stone-100
-                    flex
-                    items-center
-                    justify-center
-                    flex-shrink-0
-                  "
-                >
-
-
-                  <Clock
-                    className="
-                      w-4
-                      h-4
-                      text-stone-400
-                    "
-                  />
-
-
-                </div>
-
-
-
-                {/* ========================= */}
-                {/* KONTEN */}
-                {/* ========================= */}
-
-                <div
-                  className="
-                    flex-1
-                    min-w-0
-                  "
-                >
-
-
-                  {/* BADGE DAN USER */}
+            {
+              logs.map(
+                (
+                  log
+                ) => (
 
                   <div
-                    className="
-                      flex
-                      items-center
-                      gap-2
-                      flex-wrap
-                    "
+
+                    key={
+                      log.id
+                    }
+
+                    className="p-4 flex items-start gap-3"
+
                   >
 
 
-                    {/* AKSI */}
+                    {/* ICON */}
 
-                    <span
+                    <div className="w-10 h-10 rounded-full bg-stone-100 flex items-center justify-center flex-shrink-0">
 
-                      className={`
-                        badge
-                        ${getActionColor(
-                          log.aksi
-                        )}
-                      `}
 
-                    >
+                      <Clock className="w-4 h-4 text-stone-400" />
 
-                      {getActionLabel(
-                        log.aksi
-                      )}
 
-                    </span>
+                    </div>
 
 
 
-                    {/* NAMA USER */}
+                    {/* CONTENT */}
 
-                    <span
-                      className="
-                        text-xs
-                        text-stone-500
-                      "
-                    >
-
-                      {
-                        log.profiles
-                          ?.nama
-                          ??
-                        'User tidak diketahui'
-                      }
-
-                    </span>
+                    <div className="flex-1 min-w-0">
 
 
+                      {/* AKSI DAN USER */}
 
-                    {/* ROLE */}
+                      <div className="flex items-center gap-2 flex-wrap">
 
-                    {
-                      log.profiles
-                        ?.role
-                      &&
-                      (
+
+                        {/* BADGE AKSI */}
 
                         <span
-                          className="
-                            text-xs
-                            text-stone-400
-                          "
+
+                          className={`badge ${getActionColor(
+                            log.aksi
+                          )}`}
+
                         >
 
-                          • {
-                            log.profiles
-                              .role
+
+                          {
+                            getActionLabel(
+                              log.aksi
+                            )
                           }
+
 
                         </span>
 
-                      )
-                    }
+
+
+                        {/* NAMA USER */}
+
+                        <span className="text-xs text-stone-500">
+
+
+                          {
+                            log.profiles
+                              ?.nama
+                              ??
+                            'User tidak diketahui'
+                          }
+
+
+                        </span>
+
+
+
+                        {/* ROLE */}
+
+                        {
+                          log.profiles
+                            ?.role && (
+
+                            <span className="text-xs text-stone-400">
+
+
+                              • {
+                                log.profiles
+                                  .role
+                              }
+
+
+                            </span>
+
+                          )
+                        }
+
+
+                      </div>
+
+
+
+                      {/* DETAIL */}
+
+                      {
+                        log.detail && (
+
+                          <p className="text-sm text-stone-600 mt-1">
+
+
+                            {
+                              log.detail
+                            }
+
+
+                          </p>
+
+                        )
+                      }
+
+
+
+                      {/* WAKTU */}
+
+                      <p className="text-xs text-stone-400 mt-2">
+
+
+                        {
+                          formatTime(
+                            log.created_at
+                          )
+                        }
+
+
+                      </p>
+
+
+                    </div>
 
 
                   </div>
 
+                )
+              )
+            }
 
 
-                  {/* ========================= */}
-                  {/* DETAIL */}
-                  {/* ========================= */}
+          </div>
 
-                  {
-                    log.detail
-                    &&
-                    (
-
-                      <p
-                        className="
-                          text-sm
-                          text-stone-600
-                          mt-1
-                        "
-                      >
-
-                        {
-                          log.detail
-                        }
-
-                      </p>
-
-                    )
-                  }
-
-
-
-                  {/* ========================= */}
-                  {/* WAKTU */}
-                  {/* ========================= */}
-
-                  <p
-                    className="
-                      text-xs
-                      text-stone-400
-                      mt-2
-                    "
-                  >
-
-                    {
-                      formatTime(
-                        log.waktu
-                      )
-                    }
-
-                  </p>
-
-
-                </div>
-
-
-              </div>
-
-            )
-
-          )}
-
-
-        </div>
-
-      )}
+        )
+      }
 
 
     </div>
