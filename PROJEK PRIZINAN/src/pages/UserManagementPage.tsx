@@ -22,13 +22,9 @@ import {
 
 import { supabase } from '@/lib/supabase';
 
-import {
-  useAuth,
-} from '@/context/AuthContext';
+import { useAuth } from '@/context/AuthContext';
 
-import {
-  getDeviceId,
-} from '@/lib/device';
+import { getDeviceId } from '@/lib/device';
 
 import type {
   Profile,
@@ -42,20 +38,36 @@ export function UserManagementPage() {
     refreshProfile,
   } = useAuth();
 
+  // =========================================================
+  // STATE USER
+  // =========================================================
+
   const [profiles, setProfiles] =
     useState<Profile[]>([]);
-
-  const [devices, setDevices] =
-    useState<UserDevice[]>([]);
 
   const [loading, setLoading] =
     useState(true);
 
+  // =========================================================
+  // STATE DEVICE
+  // =========================================================
+
+  const [devices, setDevices] =
+    useState<UserDevice[]>([]);
+
   const [deviceLoading, setDeviceLoading] =
     useState(false);
 
+  // =========================================================
+  // STATE ERROR
+  // =========================================================
+
   const [error, setError] =
     useState<string | null>(null);
+
+  // =========================================================
+  // STATE EDIT USER
+  // =========================================================
 
   const [editingId, setEditingId] =
     useState<string | null>(null);
@@ -70,75 +82,99 @@ export function UserManagementPage() {
     useState(false);
 
   // =========================================================
-  // FETCH DATA
+  // AMBIL DATA USER + DEVICE
   // =========================================================
 
   const fetchData = useCallback(
     async () => {
       setLoading(true);
-
       setError(null);
 
-      const [
-        profileResult,
-        deviceResult,
-      ] = await Promise.all([
-        supabase
-          .from('profiles')
-          .select('*')
-          .order('created_at', {
-            ascending: true,
-          }),
+      try {
+        const [
+          profileResult,
+          deviceResult,
+        ] = await Promise.all([
+          supabase
+            .from('profiles')
+            .select('*')
+            .order('created_at', {
+              ascending: true,
+            }),
 
-        supabase
-          .from('user_devices')
-          .select('*')
-          .order('last_active', {
-            ascending: false,
-          }),
-      ]);
+          supabase
+            .from('user_devices')
+            .select('*')
+            .order('last_active', {
+              ascending: false,
+            }),
+        ]);
 
-      if (profileResult.error) {
+        // ===================================================
+        // PROFILE
+        // ===================================================
+
+        if (profileResult.error) {
+          console.error(
+            'Error fetching profiles:',
+            profileResult.error
+          );
+
+          setError(
+            'Gagal mengambil data pengguna.'
+          );
+        } else {
+          setProfiles(
+            (profileResult.data ??
+              []) as Profile[]
+          );
+        }
+
+        // ===================================================
+        // DEVICE
+        // ===================================================
+
+        if (deviceResult.error) {
+          console.error(
+            'Error fetching devices:',
+            deviceResult.error
+          );
+
+          setError(
+            'Gagal mengambil data perangkat.'
+          );
+        } else {
+          setDevices(
+            (deviceResult.data ??
+              []) as UserDevice[]
+          );
+        }
+      } catch (err) {
         console.error(
-          profileResult.error
+          'Fetch data error:',
+          err
         );
 
         setError(
-          'Gagal mengambil data pengguna.'
+          'Terjadi kesalahan saat mengambil data.'
         );
-      } else {
-        setProfiles(
-          (profileResult.data ??
-            []) as Profile[]
-        );
+      } finally {
+        setLoading(false);
       }
-
-      if (deviceResult.error) {
-        console.error(
-          deviceResult.error
-        );
-
-        setError(
-          'Gagal mengambil data perangkat.'
-        );
-      } else {
-        setDevices(
-          (deviceResult.data ??
-            []) as UserDevice[]
-        );
-      }
-
-      setLoading(false);
     },
     []
   );
+
+  // =========================================================
+  // LOAD DATA SAAT HALAMAN DIBUKA
+  // =========================================================
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
   // =========================================================
-  // OPEN EDIT MODAL
+  // BUKA MODAL EDIT
   // =========================================================
 
   const openEdit = (
@@ -146,19 +182,25 @@ export function UserManagementPage() {
   ) => {
     setEditingId(profile.id);
 
-    setEditNama(profile.nama);
+    setEditNama(
+      profile.nama ?? ''
+    );
 
-    setEditRole(profile.role);
+    setEditRole(
+      profile.role ?? 'admin'
+    );
 
     setError(null);
   };
 
   // =========================================================
-  // CLOSE MODAL
+  // TUTUP MODAL
   // =========================================================
 
   const closeModal = () => {
-    if (saving) return;
+    if (saving) {
+      return;
+    }
 
     setEditingId(null);
 
@@ -168,11 +210,13 @@ export function UserManagementPage() {
   };
 
   // =========================================================
-  // SAVE USER
+  // SIMPAN PERUBAHAN USER
   // =========================================================
 
   const handleSave = async () => {
-    if (!editingId) return;
+    if (!editingId) {
+      return;
+    }
 
     if (
       editNama.trim().length < 2
@@ -188,100 +232,133 @@ export function UserManagementPage() {
 
     setError(null);
 
-    const oldProfile =
-      profiles.find(
-        (item) =>
-          item.id === editingId
-      );
-
-    const { error } =
-      await supabase
-        .from('profiles')
-        .update({
-          nama: editNama.trim(),
-          role: editRole,
-        })
-        .eq(
-          'id',
-          editingId
+    try {
+      const oldProfile =
+        profiles.find(
+          (item) =>
+            item.id ===
+            editingId
         );
 
-    if (error) {
-      console.error(error);
+      const { error } =
+        await supabase
+          .from('profiles')
+          .update({
+            nama:
+              editNama.trim(),
 
-      setError(
-        'Gagal memperbarui pengguna.'
+            role:
+              editRole,
+          })
+          .eq(
+            'id',
+            editingId
+          );
+
+      if (error) {
+        console.error(
+          'Update user error:',
+          error
+        );
+
+        setError(
+          'Gagal memperbarui pengguna.'
+        );
+
+        return;
+      }
+
+      // =====================================================
+      // SIMPAN LOG AKTIVITAS
+      // =====================================================
+
+      if (currentUser) {
+        const { error: logError } =
+          await supabase
+            .from('log_aktivitas')
+            .insert({
+              user_id:
+                currentUser.id,
+
+              target_id:
+                editingId,
+
+              aksi:
+                'edit_user',
+
+              detail:
+                `Mengubah user ${
+                  oldProfile?.nama ??
+                  editingId
+                } menjadi ${
+                  editNama.trim()
+                } dengan role ${
+                  editRole
+                }`,
+            });
+
+        if (logError) {
+          console.error(
+            'Log error:',
+            logError
+          );
+        }
+      }
+
+      await refreshProfile();
+
+      await fetchData();
+
+      closeModal();
+    } catch (err) {
+      console.error(
+        'Save user error:',
+        err
       );
 
+      setError(
+        'Terjadi kesalahan saat menyimpan perubahan.'
+      );
+    } finally {
       setSaving(false);
-
-      return;
     }
-
-    // =======================================================
-    // LOG
-    // =======================================================
-
-    if (currentUser) {
-      await supabase
-        .from('log_aktivitas')
-        .insert({
-          user_id:
-            currentUser.id,
-
-          target_id:
-            editingId,
-
-          aksi:
-            'edit_user',
-
-          detail:
-            `Mengubah user ${
-              oldProfile?.nama ??
-              editingId
-            } menjadi ${
-              editNama.trim()
-            } dengan role ${
-              editRole
-            }`,
-        });
-    }
-
-    await refreshProfile();
-
-    await fetchData();
-
-    setSaving(false);
-
-    closeModal();
   };
 
   // =========================================================
-  // TOGGLE BLOCK DEVICE
+  // BLOKIR / BUKA BLOKIR DEVICE
   // =========================================================
 
   const toggleDevice = async (
     device: UserDevice
   ) => {
     // =======================================================
-    // JANGAN BOLEH BLOCK DEVICE YANG SEDANG DIGUNAKAN
+    // DEVICE ID YANG SEDANG DIGUNAKAN
     // =======================================================
 
     const currentDeviceId =
       getDeviceId();
 
-    if (
+    // =======================================================
+    // CEGAH SUPER ADMIN MEMBLOKIR DEVICE SENDIRI
+    // =======================================================
+
+    const isCurrentDevice =
       device.user_id ===
         currentUser?.id &&
       device.device_id ===
-        currentDeviceId
-    ) {
+        currentDeviceId;
+
+    if (isCurrentDevice) {
       setError(
-        'Anda tidak dapat memblokir perangkat yang sedang digunakan.'
+        'Perangkat yang sedang Anda gunakan tidak dapat diblokir.'
       );
 
       return;
     }
+
+    // =======================================================
+    // KONFIRMASI
+    // =======================================================
 
     const action =
       device.is_blocked
@@ -290,7 +367,7 @@ export function UserManagementPage() {
 
     const confirmed =
       window.confirm(
-        `Yakin ingin ${action} perangkat "${device.device_name}"?`
+        `Yakin ingin ${action} perangkat "${device.device_name ?? 'Unknown Device'}"?`
       );
 
     if (!confirmed) {
@@ -304,87 +381,117 @@ export function UserManagementPage() {
     const newBlockedStatus =
       !device.is_blocked;
 
-    const { error } =
-      await supabase
-        .from('user_devices')
-        .update({
-          is_blocked:
-            newBlockedStatus,
-        })
-        .eq(
-          'id',
-          device.id
+    try {
+      // =====================================================
+      // UPDATE DATABASE
+      // =====================================================
+
+      const { error } =
+        await supabase
+          .from('user_devices')
+          .update({
+            is_blocked:
+              newBlockedStatus,
+          })
+          .eq(
+            'id',
+            device.id
+          );
+
+      if (error) {
+        console.error(
+          'Toggle device error:',
+          error
         );
 
-    if (error) {
-      console.error(error);
+        setError(
+          `Gagal ${action} perangkat.`
+        );
 
-      setError(
-        `Gagal ${action} perangkat.`
+        return;
+      }
+
+      // =====================================================
+      // LOG AKTIVITAS
+      // =====================================================
+
+      if (currentUser) {
+        const { error: logError } =
+          await supabase
+            .from('log_aktivitas')
+            .insert({
+              user_id:
+                currentUser.id,
+
+              target_id:
+                device.id,
+
+              aksi:
+                newBlockedStatus
+                  ? 'blokir_perangkat'
+                  : 'buka_blokir_perangkat',
+
+              detail:
+                `${
+                  newBlockedStatus
+                    ? 'Memblokir'
+                    : 'Membuka blokir'
+                } perangkat ${
+                  device.device_name ??
+                  'Unknown Device'
+                } - ${
+                  device.browser ??
+                  'Unknown Browser'
+                } - ${
+                  device.os ??
+                  'Unknown OS'
+                } milik user ${
+                  device.user_id
+                }`,
+            });
+
+        if (logError) {
+          console.error(
+            'Device log error:',
+            logError
+          );
+        }
+      }
+
+      // =====================================================
+      // UPDATE TAMPILAN TANPA REFRESH
+      // =====================================================
+
+      setDevices(
+        (current) =>
+          current.map(
+            (item) =>
+              item.id ===
+              device.id
+                ? {
+                    ...item,
+                    is_blocked:
+                      newBlockedStatus,
+                  }
+                : item
+          )
+      );
+    } catch (err) {
+      console.error(
+        'Toggle device exception:',
+        err
       );
 
+      setError(
+        `Terjadi kesalahan saat ${action} perangkat.`
+      );
+    } finally {
       setDeviceLoading(false);
-
-      return;
     }
-
-    // =======================================================
-    // LOG AKTIVITAS
-    // =======================================================
-
-    if (currentUser) {
-      await supabase
-        .from('log_aktivitas')
-        .insert({
-          user_id:
-            currentUser.id,
-
-          target_id:
-            device.id,
-
-          aksi:
-            newBlockedStatus
-              ? 'blokir_perangkat'
-              : 'buka_blokir_perangkat',
-
-          detail:
-            `${
-              newBlockedStatus
-                ? 'Memblokir'
-                : 'Membuka blokir'
-            } perangkat ${
-              device.device_name
-            } - ${
-              device.browser
-            } - ${
-              device.os
-            } milik user ${device.user_id}`,
-        });
-    }
-
-    // =======================================================
-    // UPDATE LOCAL STATE
-    // =======================================================
-
-    setDevices(
-      (current) =>
-        current.map(
-          (item) =>
-            item.id === device.id
-              ? {
-                  ...item,
-                  is_blocked:
-                    newBlockedStatus,
-                }
-              : item
-        )
-    );
-
-    setDeviceLoading(false);
   };
 
   // =========================================================
-  // DEVICE ICON
+  // ICON DEVICE
   // =========================================================
 
   const DeviceIcon = ({
@@ -392,10 +499,16 @@ export function UserManagementPage() {
   }: {
     device: UserDevice;
   }) => {
+    const os =
+      (
+        device.os ??
+        ''
+      ).toLowerCase();
+
     if (
-      device.os
-        .toLowerCase()
-        .includes('android')
+      os.includes(
+        'android'
+      )
     ) {
       return (
         <Smartphone className="w-5 h-5" />
@@ -403,9 +516,12 @@ export function UserManagementPage() {
     }
 
     if (
-      device.os
-        .toLowerCase()
-        .includes('ios')
+      os.includes(
+        'iphone'
+      ) ||
+      os.includes(
+        'ios'
+      )
     ) {
       return (
         <Smartphone className="w-5 h-5" />
@@ -413,9 +529,9 @@ export function UserManagementPage() {
     }
 
     if (
-      device.os
-        .toLowerCase()
-        .includes('ipad')
+      os.includes(
+        'ipad'
+      )
     ) {
       return (
         <Tablet className="w-5 h-5" />
@@ -428,15 +544,28 @@ export function UserManagementPage() {
   };
 
   // =========================================================
-  // FORMAT LAST ACTIVE
+  // FORMAT TANGGAL
   // =========================================================
 
   const formatLastActive = (
     value: string
   ) => {
-    return new Date(
-      value
-    ).toLocaleString(
+    if (!value) {
+      return '-';
+    }
+
+    const date =
+      new Date(value);
+
+    if (
+      Number.isNaN(
+        date.getTime()
+      )
+    ) {
+      return '-';
+    }
+
+    return date.toLocaleString(
       'id-ID',
       {
         day: '2-digit',
@@ -449,20 +578,35 @@ export function UserManagementPage() {
   };
 
   // =========================================================
-  // CHECK ACTIVE
+  // CEK DEVICE AKTIF
   // =========================================================
 
   const isRecentlyActive = (
     value: string
   ) => {
+    if (!value) {
+      return false;
+    }
+
     const lastActive =
-      new Date(value).getTime();
+      new Date(
+        value
+      ).getTime();
+
+    if (
+      Number.isNaN(
+        lastActive
+      )
+    ) {
+      return false;
+    }
 
     const now =
       Date.now();
 
     return (
-      now - lastActive <
+      now -
+        lastActive <
       2 * 60 * 1000
     );
   };
@@ -474,20 +618,27 @@ export function UserManagementPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-8 h-8 animate-spin" />
+
+        <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
+
       </div>
     );
   }
 
   // =========================================================
-  // EDITING PROFILE
+  // USER YANG SEDANG DIEDIT
   // =========================================================
 
   const editingProfile =
     profiles.find(
       (item) =>
-        item.id === editingId
+        item.id ===
+        editingId
     );
+
+  // =========================================================
+  // DEVICE MILIK USER YANG SEDANG DIEDIT
+  // =========================================================
 
   const editingDevices =
     devices.filter(
@@ -510,28 +661,35 @@ export function UserManagementPage() {
       <div className="flex items-center justify-between gap-4">
 
         <div>
-          <div className="flex items-center gap-3">
-            <UserCog className="w-7 h-7" />
 
-            <h1 className="text-2xl font-bold">
+          <div className="flex items-center gap-3">
+
+            <UserCog className="w-7 h-7 text-primary-600" />
+
+            <h1 className="text-2xl font-bold text-stone-800">
               Manajemen User
             </h1>
+
           </div>
 
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-stone-500 mt-1">
             Kelola pengguna dan perangkat yang digunakan
             untuk mengakses sistem.
           </p>
+
         </div>
 
         <button
+          type="button"
           onClick={fetchData}
           disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg border hover:bg-gray-50 transition"
+          className="flex items-center gap-2 px-4 py-2 rounded-lg border border-stone-200 bg-white hover:bg-stone-50 transition text-sm font-medium"
         >
+
           <RefreshCw className="w-4 h-4" />
 
           Refresh
+
         </button>
 
       </div>
@@ -541,21 +699,24 @@ export function UserManagementPage() {
       ====================================================== */}
 
       {error && (
-        <div className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
+        <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 text-red-700">
 
-          <AlertCircle className="w-5 h-5 shrink-0" />
+          <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
 
-          <p className="text-sm">
+          <p className="text-sm flex-1">
             {error}
           </p>
 
           <button
+            type="button"
             onClick={() =>
               setError(null)
             }
-            className="ml-auto"
+            className="hover:bg-red-100 rounded-lg p-1"
           >
+
             <X className="w-4 h-4" />
+
           </button>
 
         </div>
@@ -582,55 +743,83 @@ export function UserManagementPage() {
                   device.is_blocked
               ).length;
 
+            const activeCount =
+              userDevices.filter(
+                (device) =>
+                  !device.is_blocked &&
+                  isRecentlyActive(
+                    device.last_active
+                  )
+              ).length;
+
             return (
               <div
                 key={item.id}
-                className="rounded-xl border bg-white p-5 shadow-sm"
+                className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm hover:shadow-md transition"
               >
 
                 <div className="flex items-center justify-between gap-4">
 
-                  <div className="flex items-center gap-4">
+                  {/* =========================================
+                      USER INFO
+                  ========================================== */}
 
-                    <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center">
+                  <div className="flex items-center gap-4 min-w-0">
+
+                    <div className="w-12 h-12 rounded-xl bg-primary-50 flex items-center justify-center flex-shrink-0">
 
                       {item.role ===
                       'super_admin' ? (
-                        <ShieldCheck className="w-6 h-6" />
+                        <ShieldCheck className="w-6 h-6 text-primary-600" />
                       ) : (
-                        <Shield className="w-6 h-6" />
+                        <Shield className="w-6 h-6 text-stone-500" />
                       )}
 
                     </div>
 
-                    <div>
+                    <div className="min-w-0">
 
-                      <h3 className="font-semibold text-lg">
-                        {item.nama}
+                      <h3 className="font-semibold text-lg text-stone-800 truncate">
+                        {item.nama ??
+                          'Tanpa Nama'}
                       </h3>
 
                       <div className="flex flex-wrap items-center gap-2 mt-1">
 
-                        <span className="text-sm text-gray-500">
+                        <span className="text-sm text-stone-500">
                           {item.role ===
                           'super_admin'
                             ? 'Super Admin'
                             : 'Admin'}
                         </span>
 
-                        <span className="text-gray-300">
+                        <span className="text-stone-300">
                           •
                         </span>
 
-                        <span className="text-sm text-gray-500">
+                        <span className="text-sm text-stone-500">
                           {userDevices.length}{' '}
                           perangkat
                         </span>
 
+                        {activeCount >
+                          0 && (
+                          <>
+                            <span className="text-stone-300">
+                              •
+                            </span>
+
+                            <span className="text-sm text-green-600">
+                              {activeCount}{' '}
+                              aktif
+                            </span>
+                          </>
+                        )}
+
                         {blockedCount >
                           0 && (
                           <>
-                            <span className="text-gray-300">
+                            <span className="text-stone-300">
                               •
                             </span>
 
@@ -647,11 +836,16 @@ export function UserManagementPage() {
 
                   </div>
 
+                  {/* =========================================
+                      BUTTON
+                  ========================================== */}
+
                   <button
+                    type="button"
                     onClick={() =>
                       openEdit(item)
                     }
-                    className="px-4 py-2 rounded-lg border hover:bg-gray-50 transition"
+                    className="flex-shrink-0 px-4 py-2 rounded-lg border border-stone-200 bg-white hover:bg-stone-50 transition text-sm font-medium"
                   >
                     Kelola
                   </button>
@@ -663,81 +857,113 @@ export function UserManagementPage() {
           }
         )}
 
+        {/* ===================================================
+            EMPTY USER
+        ==================================================== */}
+
+        {profiles.length ===
+          0 && (
+          <div className="rounded-xl border border-dashed border-stone-300 p-10 text-center">
+
+            <UserCog className="w-10 h-10 mx-auto mb-3 text-stone-400" />
+
+            <p className="text-sm text-stone-500">
+              Belum ada data pengguna.
+            </p>
+
+          </div>
+        )}
+
       </div>
 
       {/* =====================================================
-          MODAL
+          MODAL KELOLA USER
       ====================================================== */}
 
       {editingId &&
         editingProfile && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
 
-            <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-xl">
+            <div className="w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl">
 
               {/* =================================================
                   MODAL HEADER
               ================================================== */}
 
-              <div className="sticky top-0 z-10 flex items-center justify-between border-b bg-white px-6 py-4">
+              <div className="sticky top-0 z-20 flex items-center justify-between border-b border-stone-200 bg-white px-6 py-4">
 
                 <div>
-                  <h2 className="text-xl font-bold">
+
+                  <h2 className="text-xl font-bold text-stone-800">
                     Kelola User
                   </h2>
 
-                  <p className="text-sm text-gray-500">
-                    {editingProfile.nama}
+                  <p className="text-sm text-stone-500 mt-0.5">
+                    {editingProfile.nama ??
+                      'Tanpa Nama'}
                   </p>
+
                 </div>
 
                 <button
+                  type="button"
                   onClick={
                     closeModal
                   }
                   disabled={saving}
-                  className="rounded-lg p-2 hover:bg-gray-100"
+                  className="rounded-lg p-2 hover:bg-stone-100 transition disabled:opacity-50"
                 >
+
                   <X className="w-5 h-5" />
+
                 </button>
 
               </div>
 
-              <div className="space-y-6 p-6">
+              <div className="space-y-7 p-6">
 
-                {/* =============================================
-                    USER DATA
-                ============================================== */}
+                {/* =================================================
+                    INFORMASI USER
+                ================================================== */}
 
-                <div>
+                <section>
 
-                  <h3 className="mb-4 font-semibold">
+                  <h3 className="mb-4 font-semibold text-stone-800">
                     Informasi User
                   </h3>
 
                   <div className="space-y-4">
 
+                    {/* NAMA */}
+
                     <div>
-                      <label className="mb-1 block text-sm font-medium">
-                        Nama
+
+                      <label className="block text-sm font-medium text-stone-600 mb-1.5">
+                        Nama Lengkap
                       </label>
 
                       <input
+                        type="text"
                         value={
                           editNama
                         }
                         onChange={(e) =>
                           setEditNama(
-                            e.target.value
+                            e.target
+                              .value
                           )
                         }
-                        className="w-full rounded-lg border px-4 py-2 outline-none focus:ring-2"
-                        placeholder="Nama user"
+                        className="input-field"
+                        placeholder="Nama pengurus"
                       />
+
                     </div>
 
+                    {/* ROLE */}
+
                     <div>
-                      <label className="mb-1 block text-sm font-medium">
+
+                      <label className="block text-sm font-medium text-stone-600 mb-1.5">
                         Role
                       </label>
 
@@ -751,8 +977,9 @@ export function UserManagementPage() {
                               .value as UserRole
                           )
                         }
-                        className="w-full rounded-lg border px-4 py-2 outline-none"
+                        className="input-field"
                       >
+
                         <option value="admin">
                           Admin
                         </option>
@@ -760,33 +987,43 @@ export function UserManagementPage() {
                         <option value="super_admin">
                           Super Admin
                         </option>
+
                       </select>
+
                     </div>
 
                   </div>
 
-                </div>
+                </section>
 
-                {/* =============================================
-                    DEVICE MANAGEMENT
-                ============================================== */}
+                {/* =================================================
+                    PEMBATAS
+                ================================================== */}
 
-                <div>
+                <div className="border-t border-stone-200" />
 
-                  <div className="mb-4 flex items-center justify-between">
+                {/* =================================================
+                    PERANGKAT
+                ================================================== */}
+
+                <section>
+
+                  <div className="mb-4 flex items-start justify-between gap-4">
 
                     <div>
-                      <h3 className="font-semibold">
+
+                      <h3 className="font-semibold text-stone-800">
                         Perangkat Login
                       </h3>
 
-                      <p className="text-sm text-gray-500">
-                        Blokir perangkat tertentu
-                        tanpa memblokir akun user.
+                      <p className="text-sm text-stone-500 mt-1">
+                        Lihat perangkat yang digunakan
+                        user dan blokir perangkat tertentu.
                       </p>
+
                     </div>
 
-                    <span className="rounded-full bg-gray-100 px-3 py-1 text-sm">
+                    <span className="flex-shrink-0 rounded-full bg-stone-100 px-3 py-1 text-sm text-stone-600">
                       {
                         editingDevices.length
                       }{' '}
@@ -795,13 +1032,17 @@ export function UserManagementPage() {
 
                   </div>
 
+                  {/* =================================================
+                      EMPTY DEVICE
+                  ================================================== */}
+
                   {editingDevices.length ===
                   0 ? (
-                    <div className="rounded-xl border border-dashed p-8 text-center">
+                    <div className="rounded-xl border border-dashed border-stone-300 p-8 text-center">
 
-                      <Monitor className="mx-auto mb-3 h-8 w-8 text-gray-400" />
+                      <Monitor className="mx-auto mb-3 h-9 w-9 text-stone-400" />
 
-                      <p className="text-sm text-gray-500">
+                      <p className="text-sm text-stone-500">
                         Belum ada perangkat
                         yang terdaftar.
                       </p>
@@ -828,16 +1069,20 @@ export function UserManagementPage() {
                               key={
                                 device.id
                               }
-                              className={`rounded-xl border p-4 ${
+                              className={`rounded-xl border p-4 transition ${
                                 device.is_blocked
                                   ? 'border-red-200 bg-red-50'
-                                  : 'bg-gray-50'
+                                  : 'border-stone-200 bg-stone-50'
                               }`}
                             >
 
                               <div className="flex items-start gap-4">
 
-                                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-white border">
+                                {/* =================================
+                                    DEVICE ICON
+                                ================================== */}
+
+                                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white border border-stone-200">
 
                                   <DeviceIcon
                                     device={
@@ -847,62 +1092,93 @@ export function UserManagementPage() {
 
                                 </div>
 
+                                {/* =================================
+                                    DEVICE INFORMATION
+                                ================================== */}
+
                                 <div className="min-w-0 flex-1">
 
                                   <div className="flex flex-wrap items-center gap-2">
 
-                                    <h4 className="font-semibold">
-                                      {
-                                        device.device_name
-                                      }
+                                    <h4 className="font-semibold text-stone-800">
+                                      {device.device_name ??
+                                        'Unknown Device'}
                                     </h4>
+
+                                    {/* ACTIVE */}
 
                                     {active &&
                                       !device.is_blocked && (
-                                        <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700">
+                                        <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+
                                           <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+
                                           Aktif
+
                                         </span>
                                       )}
 
+                                    {/* BLOCKED */}
+
                                     {device.is_blocked && (
-                                      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-700">
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+
                                         <Ban className="h-3 w-3" />
+
                                         Diblokir
+
                                       </span>
                                     )}
 
+                                    {/* CURRENT */}
+
                                     {currentDevice && (
-                                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs text-blue-700">
+                                      <span className="rounded-full bg-primary-100 px-2 py-0.5 text-xs font-medium text-primary-700">
                                         Perangkat saat ini
                                       </span>
                                     )}
 
                                   </div>
 
-                                  <div className="mt-1 text-sm text-gray-600">
+                                  {/* BROWSER + OS */}
 
-                                    {device.browser}
-                                    {' • '}
-                                    {device.os}
+                                  <div className="mt-1 text-sm text-stone-600">
+
+                                    {device.browser ??
+                                      'Unknown Browser'}
+
+                                    <span className="mx-1">
+                                      •
+                                    </span>
+
+                                    {device.os ??
+                                      'Unknown OS'}
 
                                   </div>
 
-                                  <div className="mt-2 flex items-center gap-1 text-xs text-gray-500">
+                                  {/* LAST ACTIVE */}
+
+                                  <div className="mt-2 flex items-center gap-1 text-xs text-stone-500">
 
                                     <Clock className="h-3.5 w-3.5" />
 
-                                    Terakhir aktif:{' '}
-
-                                    {formatLastActive(
-                                      device.last_active
-                                    )}
+                                    <span>
+                                      Terakhir aktif:{' '}
+                                      {formatLastActive(
+                                        device.last_active
+                                      )}
+                                    </span>
 
                                   </div>
 
                                 </div>
 
+                                {/* =================================
+                                    BLOCK BUTTON
+                                ================================== */}
+
                                 <button
+                                  type="button"
                                   onClick={() =>
                                     toggleDevice(
                                       device
@@ -915,7 +1191,9 @@ export function UserManagementPage() {
                                   title={
                                     currentDevice
                                       ? 'Perangkat yang sedang digunakan tidak dapat diblokir'
-                                      : ''
+                                      : device.is_blocked
+                                        ? 'Buka blokir perangkat'
+                                        : 'Blokir perangkat'
                                   }
                                   className={`inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
                                     device.is_blocked
@@ -927,12 +1205,18 @@ export function UserManagementPage() {
                                   {device.is_blocked ? (
                                     <>
                                       <CheckCircle2 className="h-4 w-4" />
-                                      Buka Blokir
+
+                                      <span className="hidden sm:inline">
+                                        Buka Blokir
+                                      </span>
                                     </>
                                   ) : (
                                     <>
                                       <Ban className="h-4 w-4" />
-                                      Blokir
+
+                                      <span className="hidden sm:inline">
+                                        Blokir
+                                      </span>
                                     </>
                                   )}
 
@@ -948,34 +1232,36 @@ export function UserManagementPage() {
                     </div>
                   )}
 
-                </div>
+                </section>
 
               </div>
 
-              {/* ===============================================
+              {/* =================================================
                   MODAL FOOTER
-              ================================================ */}
+              ================================================== */}
 
-              <div className="sticky bottom-0 flex justify-end gap-3 border-t bg-white px-6 py-4">
+              <div className="sticky bottom-0 z-20 flex justify-end gap-3 border-t border-stone-200 bg-white px-6 py-4">
 
                 <button
+                  type="button"
                   onClick={
                     closeModal
                   }
                   disabled={saving}
-                  className="rounded-lg border px-4 py-2 hover:bg-gray-50"
+                  className="rounded-lg border border-stone-200 px-4 py-2 text-sm font-medium text-stone-700 hover:bg-stone-50 transition disabled:opacity-50"
                 >
                   Batal
                 </button>
 
                 <button
+                  type="button"
                   onClick={
                     handleSave
                   }
                   disabled={
                     saving
                   }
-                  className="inline-flex items-center gap-2 rounded-lg px-5 py-2 font-medium text-white disabled:opacity-50"
+                  className="btn-primary inline-flex items-center gap-2 px-5 py-2 disabled:opacity-50"
                 >
 
                   {saving && (
