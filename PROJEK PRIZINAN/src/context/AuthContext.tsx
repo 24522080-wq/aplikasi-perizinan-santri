@@ -4,11 +4,14 @@ import {
   useEffect,
   useState,
   useCallback,
-  useRef,
   type ReactNode,
 } from 'react';
+
 import type { Session, User } from '@supabase/supabase-js';
+
 import { supabase } from '@/lib/supabase';
+import { getDeviceId, getDeviceInfo } from '@/lib/device';
+
 import type { Profile } from '@/types';
 
 interface AuthContextValue {
@@ -16,43 +19,75 @@ interface AuthContextValue {
   user: User | null;
   profile: Profile | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+
+  authMessage: string | null;
+
+  signIn: (
+    email: string,
+    password: string
+  ) => Promise<{ error: string | null }>;
+
   signUp: (
     email: string,
     password: string,
     nama: string
   ) => Promise<{ error: string | null }>;
+
   signOut: () => Promise<void>;
+
   refreshProfile: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+const AuthContext = createContext<AuthContextValue | undefined>(
+  undefined
+);
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export function AuthProvider({
+  children,
+}: {
+  children: ReactNode;
+}) {
   const [session, setSession] = useState<Session | null>(null);
+
   const [user, setUser] = useState<User | null>(null);
+
   const [profile, setProfile] = useState<Profile | null>(null);
+
   const [loading, setLoading] = useState(true);
 
-  // Mencegah pengecekan user berjalan bersamaan
-  const checkingUserRef = useRef(false);
+  const [authMessage, setAuthMessage] = useState<string | null>(
+    null
+  );
 
-  const fetchProfile = useCallback(async (userId: string) => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .maybeSingle();
+  // =========================================================
+  // FETCH PROFILE
+  // =========================================================
 
-    if (error) {
-      console.error('Error fetching profile:', error);
-      return null;
-    }
+  const fetchProfile = useCallback(
+    async (userId: string) => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
 
-    setProfile(data as Profile | null);
+      if (error) {
+        console.error(
+          'Error fetching profile:',
+          error
+        );
 
-    return data as Profile | null;
-  }, []);
+        return;
+      }
+
+      setProfile(data as Profile | null);
+    },
+    []
+  );
+
+  // =========================================================
+  // REFRESH PROFILE
+  // =========================================================
 
   const refreshProfile = useCallback(async () => {
     if (user) {
@@ -60,219 +95,563 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user, fetchProfile]);
 
-  /**
-   * Mengecek apakah user yang sedang login
-   * masih benar-benar ada di Supabase Auth.
-   *
-   * getSession() hanya membaca session yang tersimpan.
-   * getUser() melakukan validasi ke Auth server.
-   */
-  const verifyCurrentUser = useCallback(async () => {
-    if (checkingUserRef.current) return;
+  // =========================================================
+  // FORCE LOGOUT
+  // =========================================================
 
-    checkingUserRef.current = true;
+  const forceLocalLogout = useCallback(
+    async (message: string) => {
+      setAuthMessage(message);
 
-    try {
+      setSession(null);
+
+      setUser(null);
+
+      setProfile(null);
+
+      try {
+        await supabase.auth.signOut({
+          scope: 'local',
+        });
+      } catch (error) {
+        console.error(
+          'Local logout error:',
+          error
+        );
+      }
+    },
+    []
+  );
+
+  // =========================================================
+  // DEVICE REGISTER
+  // =========================================================
+
+  const registerDevice = useCallback(
+    async (userId: string) => {
+      if (!userId) return;
+
+      const deviceId = getDeviceId();
+
+      const deviceInfo = getDeviceInfo();
+
+      const { error } = await supabase.rpc(
+        'register_my_device',
+        {
+          p_device_id: deviceId,
+          p_device_name: deviceInfo.deviceName,
+          p_browser: deviceInfo.browser,
+          p_os: deviceInfo.os,
+        }
+      );
+
+      if (error) {
+        console.error(
+          'Error registering device:',
+          error
+        );
+      }
+    },
+    []
+  );
+
+  // =========================================================
+  // CHECK DEVICE BLOCK
+  // =========================================================
+
+  const checkDeviceBlocked = useCallback(
+    async (
+      userId: string
+    ): Promise<boolean | null> => {
+      if (!userId) return null;
+
+      const deviceId = getDeviceId();
+
+      const { data, error } = await supabase
+        .from('user_devices')
+        .select('is_blocked')
+        .eq('user_id', userId)
+        .eq('device_id', deviceId)
+        .maybeSingle();
+
+      if (error) {
+        console.error(
+          'Error checking device:',
+          error
+        );
+
+        return null;
+      }
+
+      return data?.is_blocked ?? false;
+    },
+    []
+  );
+
+  // =========================================================
+  // HEARTBEAT
+  // =========================================================
+
+  const heartbeatDevice = useCallback(
+    async () => {
+      const deviceId = getDeviceId();
+
+      const { error } = await supabase.rpc(
+        'heartbeat_my_device',
+        {
+          p_device_id: deviceId,
+        }
+      );
+
+      if (error) {
+        console.error(
+          'Heartbeat error:',
+          error
+        );
+      }
+    },
+    []
+  );
+
+  // =========================================================
+  // VERIFY CURRENT USER
+  // =========================================================
+
+  const verifyCurrentUser = useCallback(
+    async () => {
       const {
         data: { user: currentUser },
         error,
       } = await supabase.auth.getUser();
 
-      // User sudah dihapus / session tidak valid
+      // =====================================================
+      // USER SUDAH TIDAK VALID / AKUN DIHAPUS
+      // =====================================================
+
       if (error || !currentUser) {
-        console.warn(
-          'User tidak valid atau sudah dihapus. Melakukan logout...'
+        await forceLocalLogout(
+          'Sesi Anda sudah tidak valid. Silakan login kembali.'
         );
 
-        await supabase.auth.signOut({ scope: 'local' });
-
-        setSession(null);
-        setUser(null);
-        setProfile(null);
-
-        return;
+        return false;
       }
 
-      // Pastikan state user tetap sesuai dengan Auth server
       setUser(currentUser);
 
-      // Ambil session terbaru dari client
-      const {
-        data: { session: currentSession },
-      } = await supabase.auth.getSession();
+      // =====================================================
+      // HEARTBEAT DEVICE
+      // =====================================================
 
-      setSession(currentSession);
+      await heartbeatDevice();
 
-      // Ambil profile terbaru
-      await fetchProfile(currentUser.id);
-    } catch (error) {
-      console.error('Gagal memverifikasi user:', error);
-    } finally {
-      checkingUserRef.current = false;
-    }
-  }, [fetchProfile]);
+      // =====================================================
+      // CEK DEVICE BLOCK
+      // =====================================================
+
+      const blocked =
+        await checkDeviceBlocked(
+          currentUser.id
+        );
+
+      if (blocked === true) {
+        await forceLocalLogout(
+          'Perangkat ini telah diblokir oleh administrator.'
+        );
+
+        return false;
+      }
+
+      // =====================================================
+      // UPDATE PROFILE
+      // =====================================================
+
+      await fetchProfile(
+        currentUser.id
+      );
+
+      return true;
+    },
+    [
+      forceLocalLogout,
+      heartbeatDevice,
+      checkDeviceBlocked,
+      fetchProfile,
+    ]
+  );
+
+  // =========================================================
+  // INITIAL AUTH
+  // =========================================================
 
   useEffect(() => {
     let mounted = true;
 
-    // Cek session pertama kali aplikasi dibuka
-    const initializeAuth = async () => {
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
+    const initializeAuth =
+      async () => {
+        try {
+          const {
+            data: { session },
+          } =
+            await supabase.auth.getSession();
 
-        if (!mounted) return;
+          if (!mounted) return;
 
-        setSession(session);
-        setUser(session?.user ?? null);
+          if (!session) {
+            setSession(null);
 
-        if (session?.user) {
-          // Validasi bahwa user masih ada
+            setUser(null);
+
+            setProfile(null);
+
+            setLoading(false);
+
+            return;
+          }
+
+          // =================================================
+          // VALIDASI USER KE SERVER
+          // =================================================
+
           const {
             data: { user: currentUser },
             error,
-          } = await supabase.auth.getUser();
+          } =
+            await supabase.auth.getUser();
 
-          if (error || !currentUser) {
-            await supabase.auth.signOut({ scope: 'local' });
+          if (
+            error ||
+            !currentUser
+          ) {
+            await forceLocalLogout(
+              'Akun Anda sudah tidak tersedia. Silakan login kembali.'
+            );
 
-            setSession(null);
-            setUser(null);
-            setProfile(null);
-          } else {
-            await fetchProfile(currentUser.id);
+            setLoading(false);
+
+            return;
           }
-        }
-      } catch (error) {
-        console.error('Error initializing auth:', error);
-      } finally {
-        if (mounted) {
+
+          setSession(session);
+
+          setUser(currentUser);
+
+          // =================================================
+          // REGISTER DEVICE
+          // =================================================
+
+          await registerDevice(
+            currentUser.id
+          );
+
+          // =================================================
+          // CEK BLOCK
+          // =================================================
+
+          const blocked =
+            await checkDeviceBlocked(
+              currentUser.id
+            );
+
+          if (blocked === true) {
+            await forceLocalLogout(
+              'Perangkat ini telah diblokir oleh administrator.'
+            );
+
+            setLoading(false);
+
+            return;
+          }
+
+          // =================================================
+          // PROFILE
+          // =================================================
+
+          await fetchProfile(
+            currentUser.id
+          );
+
+          setLoading(false);
+        } catch (error) {
+          console.error(
+            'Auth initialization error:',
+            error
+          );
+
           setLoading(false);
         }
-      }
-    };
+      };
 
     initializeAuth();
 
-    // Dengarkan perubahan authentication
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      (_event, newSession) => {
-        if (!mounted) return;
+    // =======================================================
+    // AUTH STATE LISTENER
+    // =======================================================
 
-        setSession(newSession);
-        setUser(newSession?.user ?? null);
+    const {
+      data: authListener,
+    } =
+      supabase.auth.onAuthStateChange(
+        (_event, newSession) => {
+          if (!mounted) return;
 
-        if (!newSession?.user) {
-          setProfile(null);
-        } else {
-          // Jalankan setelah callback selesai
-          setTimeout(() => {
-            if (mounted) {
-              fetchProfile(newSession.user.id);
+          setSession(newSession);
+
+          setUser(
+            newSession?.user ??
+              null
+          );
+
+          if (!newSession) {
+            setProfile(null);
+
+            return;
+          }
+
+          // Jangan melakukan banyak request
+          // langsung di callback Supabase.
+          setTimeout(async () => {
+            if (!mounted) return;
+
+            await registerDevice(
+              newSession.user.id
+            );
+
+            const blocked =
+              await checkDeviceBlocked(
+                newSession.user.id
+              );
+
+            if (blocked === true) {
+              await forceLocalLogout(
+                'Perangkat ini telah diblokir oleh administrator.'
+              );
+
+              return;
             }
+
+            await fetchProfile(
+              newSession.user.id
+            );
           }, 0);
         }
-      }
-    );
-
-    /**
-     * Cek ulang setiap 15 detik.
-     *
-     * Jika akun dihapus dari Supabase Dashboard,
-     * perangkat yang masih membuka aplikasi akan
-     * terdeteksi dan otomatis logout.
-     */
-    const interval = window.setInterval(() => {
-      if (mounted) {
-        verifyCurrentUser();
-      }
-    }, 15000);
-
-    /**
-     * Cek ketika browser kembali aktif.
-     * Misalnya user pindah tab lalu kembali ke aplikasi.
-     */
-    const handleFocus = () => {
-      if (mounted) {
-        verifyCurrentUser();
-      }
-    };
-
-    window.addEventListener('focus', handleFocus);
-
-    /**
-     * Cek ketika tab kembali terlihat.
-     */
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && mounted) {
-        verifyCurrentUser();
-      }
-    };
-
-    document.addEventListener(
-      'visibilitychange',
-      handleVisibilityChange
-    );
+      );
 
     return () => {
       mounted = false;
 
       authListener.subscription.unsubscribe();
+    };
+  }, [
+    registerDevice,
+    checkDeviceBlocked,
+    forceLocalLogout,
+    fetchProfile,
+  ]);
 
-      window.clearInterval(interval);
+  // =========================================================
+  // AUTO CHECK EVERY 15 SECOND
+  // =========================================================
 
-      window.removeEventListener('focus', handleFocus);
+  useEffect(() => {
+    if (!user) return;
+
+    const interval =
+      window.setInterval(
+        async () => {
+          await verifyCurrentUser();
+        },
+        15000
+      );
+
+    return () => {
+      window.clearInterval(
+        interval
+      );
+    };
+  }, [
+    user,
+    verifyCurrentUser,
+  ]);
+
+  // =========================================================
+  // CHECK KETIKA KEMBALI KE TAB
+  // =========================================================
+
+  useEffect(() => {
+    const handleFocus =
+      async () => {
+        if (user) {
+          await verifyCurrentUser();
+        }
+      };
+
+    const handleVisibility =
+      async () => {
+        if (
+          document.visibilityState ===
+          'visible'
+        ) {
+          if (user) {
+            await verifyCurrentUser();
+          }
+        }
+      };
+
+    window.addEventListener(
+      'focus',
+      handleFocus
+    );
+
+    document.addEventListener(
+      'visibilitychange',
+      handleVisibility
+    );
+
+    return () => {
+      window.removeEventListener(
+        'focus',
+        handleFocus
+      );
 
       document.removeEventListener(
         'visibilitychange',
-        handleVisibilityChange
+        handleVisibility
       );
     };
-  }, [fetchProfile, verifyCurrentUser]);
+  }, [
+    user,
+    verifyCurrentUser,
+  ]);
 
-  const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+  // =========================================================
+  // SIGN IN
+  // =========================================================
+
+  const signIn = async (
+    email: string,
+    password: string
+  ) => {
+    setAuthMessage(null);
+
+    const { error } =
+      await supabase.auth.signInWithPassword(
+        {
+          email,
+          password,
+        }
+      );
+
+    if (error) {
+      return {
+        error:
+          error.message,
+      };
+    }
+
+    // =======================================================
+    // VALIDASI USER SETELAH LOGIN
+    // =======================================================
+
+    const {
+      data: { user: currentUser },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (
+      userError ||
+      !currentUser
+    ) {
+      await forceLocalLogout(
+        'Akun tidak dapat divalidasi.'
+      );
+
+      return {
+        error:
+          'Akun tidak dapat divalidasi.',
+      };
+    }
+
+    // =======================================================
+    // REGISTER DEVICE
+    // =======================================================
+
+    await registerDevice(
+      currentUser.id
+    );
+
+    // =======================================================
+    // CEK BLOCK
+    // =======================================================
+
+    const blocked =
+      await checkDeviceBlocked(
+        currentUser.id
+      );
+
+    if (blocked === true) {
+      await forceLocalLogout(
+        'Perangkat ini telah diblokir oleh administrator.'
+      );
+
+      return {
+        error:
+          'Perangkat ini telah diblokir oleh administrator.',
+      };
+    }
 
     return {
-      error: error?.message ?? null,
+      error: null,
     };
   };
+
+  // =========================================================
+  // SIGN UP
+  // =========================================================
 
   const signUp = async (
     email: string,
     password: string,
     nama: string
   ) => {
-    const { error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          nama,
+    setAuthMessage(null);
+
+    const { error } =
+      await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            nama,
+          },
         },
-      },
-    });
+      });
 
     return {
-      error: error?.message ?? null,
+      error:
+        error?.message ??
+        null,
     };
   };
 
+  // =========================================================
+  // SIGN OUT
+  // =========================================================
+
   const signOut = async () => {
-    try {
-      await supabase.auth.signOut({ scope: 'local' });
-    } catch (error) {
-      console.error('Error saat logout:', error);
-    }
+    await supabase.auth.signOut();
 
     setSession(null);
+
     setUser(null);
+
     setProfile(null);
+
+    setAuthMessage(null);
   };
+
+  // =========================================================
+  // PROVIDER
+  // =========================================================
 
   return (
     <AuthContext.Provider
@@ -281,6 +660,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         profile,
         loading,
+        authMessage,
         signIn,
         signUp,
         signOut,
@@ -292,12 +672,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
+// ===========================================================
+// HOOK
+// ===========================================================
+
 export function useAuth() {
-  const context = useContext(AuthContext);
+  const context =
+    useContext(AuthContext);
 
   if (!context) {
-    throw new Error('useAuth must be used within AuthProvider');
+    throw new Error(
+      'useAuth must be used within AuthProvider'
+    );
   }
 
   return context;
